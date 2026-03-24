@@ -148,6 +148,28 @@ export default function CaseHistoryWizard() {
   const [loadingHistories, setLoadingHistories] = useState(false);
   const contentRef = useRef(null);
 
+  const setAuthToken = (token) => {
+    if (token) {
+      localStorage.setItem("casehistory_token", token);
+      axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+    } else {
+      localStorage.removeItem("casehistory_token");
+      delete axios.defaults.headers.common.Authorization;
+    }
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem("casehistory_token");
+    if (token) {
+      axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+      axios.get("/api/auth/verify").catch(() => {
+        setAuthToken(null);
+        setSelectedChild(null);
+        toast.warn("Session expired. Select child again to re-authenticate.");
+      });
+    }
+  }, []);
+
   // ─── Load children from backend ───────────────────────────────────────────
   useEffect(() => {
     const fetchChildren = async () => {
@@ -190,19 +212,31 @@ export default function CaseHistoryWizard() {
   }, []);
 
   // ─── Select child ──────────────────────────────────────────────────────────
-  const handleSelectChild = (child) => {
-    setSelectedChild(child);
-    setSearchQuery(child.name);
-    setShowDropdown(false);
-    setFormData((prev) => ({
-      ...prev,
-      childName: child.name || "",
-      dob: child.dob ? child.dob.split("T")[0] : "",
-      therapistName: child.therapistId?.name || "",
-      centre: child.centreId?.name || "",
-      visualShapes: { ...prev.visualShapes, childName: child.name || "" },
-    }));
-    fetchSavedHistories(child._id);
+  const handleSelectChild = async (child) => {
+    try {
+      const loginRes = await axios.post("/api/auth/login/child", { childId: child._id });
+      if (loginRes?.data?.token) {
+        setAuthToken(loginRes.data.token);
+      }
+      setSelectedChild(child);
+      setSearchQuery(child.name);
+      setShowDropdown(false);
+      setFormData((prev) => ({
+        ...prev,
+        childName: child.name || "",
+        dob: child.dob ? child.dob.split("T")[0] : "",
+        therapistName: child.therapistId?.name || "",
+        centre: child.centreId?.name || "",
+        visualShapes: { ...prev.visualShapes, childName: child.name || "" },
+      }));
+      await fetchSavedHistories(child._id);
+      toast.success(`${child.name} selected and authenticated.`);
+    } catch (err) {
+      console.error("Child login failed:", err.response?.data || err.message);
+      toast.error(err.response?.data?.message || "Failed to login child for this session.");
+      setAuthToken(null);
+      setSelectedChild(null);
+    }
   };
 
   // ─── Fetch past histories ─────────────────────────────────────────────────
@@ -211,7 +245,12 @@ export default function CaseHistoryWizard() {
     try {
       const res = await axios.get(`/api/cases/child/${childId}`);
       setSavedHistories(Array.isArray(res.data) ? res.data : []);
-    } catch {
+    } catch (err) {
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please re-select child.");
+        setAuthToken(null);
+        setSelectedChild(null);
+      }
       setSavedHistories([]);
     } finally {
       setLoadingHistories(false);
@@ -416,6 +455,7 @@ export default function CaseHistoryWizard() {
     setFormData(initialFormData);
     setCurrentStep(0);
     setVisitedSteps(new Set([0]));
+    setAuthToken(null);
   };
 
   const updateFormData = useCallback((section, value) => {

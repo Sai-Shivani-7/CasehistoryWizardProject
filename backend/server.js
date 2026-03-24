@@ -7,6 +7,7 @@ import centreRoutes    from "./routes/centre.routes.js";
 import therapistRoutes from "./routes/therapist.routes.js";
 import childRoutes     from "./routes/child.routes.js";
 import caseRoutes      from "./routes/case.routes.js";
+import authRoutes      from "./routes/auth.routes.js";
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use(express.json({ limit: "50mb" }));   // large for drawing path data
 app.use(express.urlencoded({ extended: true }));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
+app.use("/api/auth",       authRoutes);
 app.use("/api/centres",    centreRoutes);
 app.use("/api/therapists", therapistRoutes);
 app.use("/api/children",   childRoutes);

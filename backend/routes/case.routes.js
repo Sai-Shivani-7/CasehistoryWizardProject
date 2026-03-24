@@ -1,8 +1,10 @@
 import { Router } from "express";
 import Case  from "../models/Case.js";
 import Child from "../models/Child.js";
+import { verifyToken } from "../middleware/auth.js";
 
 const router = Router();
+router.use(verifyToken);
 
 // ── POST /api/cases ───────────────────────────────────────────────────────────
 // Called by handleSave in CaseHistoryWizard — saves all 8 steps at once.
